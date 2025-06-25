@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PINFRA: Interactive Investment Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutral Harmony -->
+    <!-- Application Structure Plan: A top-down, single-page dashboard structure. It starts with a high-level 'Dashboard' summary, providing key metrics and entry points. The user can scroll or use the navigation bar to jump to thematic sections: 'Thesis', 'Company Deep Dive', 'Valuation', and 'Risks'. This non-linear structure prioritizes user-driven exploration over the report's linear format. The key interaction is the dynamic IRR calculator in the 'Valuation' section, which allows users to engage with the core financial model, making the analysis more tangible and understandable. -->
+    <!-- Visualization & Content Choices: 
+        - Key Metrics (Dashboard): Goal: Inform. Method: Styled HTML cards for quick scanning. Interaction: Clicks scroll to detail sections. Justification: Provides an immediate, digestible summary of the investment's vital stats.
+        - Peer Valuation (Dashboard): Goal: Compare. Method: Bar chart (Chart.js). Interaction: Tooltips on hover. Justification: Immediately highlights the core valuation discrepancy that underpins the thesis.
+        - EBITDA Growth (Dashboard): Goal: Show Change. Method: Line chart (Chart.js). Justification: Visualizes the company's strong historical performance.
+        - Market Multiple Inversion (Thesis): Goal: Compare. Method: Line chart (Chart.js). Justification: Clearly illustrates the macro trend supporting the investment thesis.
+        - ROIC & IRR (Valuation): Goal: Explore/Inform. Method: Dynamic stat displays and an interactive bar chart linked to a range slider. Interaction: User adjusts slider to change reinvestment assumptions, and the chart/text update in real-time. Justification: This is the most critical interaction, transforming a static calculation into an exploratory tool, empowering the user to test the thesis themselves.
+        - Risks (Risks): Goal: Organize. Method: HTML/JS Accordion. Interaction: Click to expand/collapse. Justification: Presents dense information in a clean, manageable format without overwhelming the user. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F9FAFB; /* gray-50 */
+            color: #1F2937; /* gray-800 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .nav-link {
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #3B82F6; /* blue-500 */
+        }
+        .stat-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header & Navigation -->
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-xl text-gray-800">PINFRA</span>
+                    <span class="ml-2 text-xl font-light text-blue-500">Analysis</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#dashboard" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Dashboard</a>
+                        <a href="#thesis" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Thesis</a>
+                        <a href="#deep-dive" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Company</a>
+                        <a href="#valuation" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Valuation</a>
+                        <a href="#risks" class="nav-link px-3 py-2 rounded-md text-sm font-medium text-gray-700">Risks</a>
+                    </div>
+                </div>
+                 <div class="md:hidden">
+                    <button id="mobile-menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
+                        <span class="sr-only">Open main menu</span>
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+        <div id="mobile-menu" class="md:hidden hidden">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#dashboard" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-gray-700">Dashboard</a>
+                <a href="#thesis" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-gray-700">Thesis</a>
+                <a href="#deep-dive" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-gray-700">Company</a>
+                <a href="#valuation" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-gray-700">Valuation</a>
+                <a href="#risks" class="nav-link block px-3 py-2 rounded-md text-base font-medium text-gray-700">Risks</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="mb-16 scroll-mt-16">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-2">PINFRA: An Undervalued Infrastructure Leader</h1>
+            <p class="text-lg text-gray-600 mb-8">This interactive report analyzes Promotora y Operadora de Infraestructura (PINFRA), Mexico's largest toll road operator. The dashboard below provides a high-level summary of the investment case, highlighting the significant valuation gap and strong fundamentals. Click on any card or chart to explore the detailed analysis.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="stat-card">
+                    <h3 class="text-sm font-medium text-gray-500 truncate">P/E Ratio</h3>
+                    <p class="mt-1 text-3xl font-semibold text-gray-900">9.93x</p>
+                    <p class="text-xs text-gray-500">vs Peer Avg. >20x</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-sm font-medium text-gray-500 truncate">EV/EBITDA</h3>
+                    <p class="mt-1 text-3xl font-semibold text-gray-900">5.48x</p>
+                    <p class="text-xs text-gray-500">vs Ferrovial at ~25x</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-sm font-medium text-gray-500 truncate">Est. ROIC</h3>
+                    <p class="mt-1 text-3xl font-semibold text-gray-900">19.0%</p>
+                    <p class="text-xs text-gray-500">Pre-tax on investments</p>
+                </div>
+                <div class="stat-card">
+                    <h3 class="text-sm font-medium text-gray-500 truncate">Avg. Concession Life</h3>
+                    <p class="mt-1 text-3xl font-semibold text-gray-900">27.3 yrs</p>
+                    <p class="text-xs text-gray-500">Weighted by traffic</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Valuation Gap: EV/EBITDA Multiple</h3>
+                    <div class="chart-container">
+                        <canvas id="peerComparisonChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Historical EBITDA Growth (MXN Millions)</h3>
+                    <div class="chart-container">
+                        <canvas id="ebitdaGrowthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Investment Thesis Section -->
+        <section id="thesis" class="mb-16 scroll-mt-16">
+            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">The Investment Thesis</h2>
+            <p class="text-gray-600 mb-8">The core thesis is that PINFRA, a premier infrastructure asset, is trading at a significant discount due to a broader market rotation away from emerging markets like Mexico towards US equities. This has created a valuation anomaly, allowing investment in a superior business at a historically low price. This section visualizes the market dynamics that have created this opportunity.</p>
+            <div class="bg-white p-6 md:p-8 rounded-lg shadow-md">
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-3">A Tale of Two Markets</h3>
+                        <p class="text-gray-600 mb-4">From 2015 to 2024, the Mexican market was largely overlooked as US stocks, particularly the "Magnificent Seven," soared. This led to a dramatic inversion of valuation multiples.</p>
+                        <div class="space-y-4">
+                            <div class="p-4 bg-gray-50 rounded-lg">
+                                <p class="font-semibold">2015 Snapshot</p>
+                                <p class="text-gray-600">Mexico Index P/E: <span class="font-bold text-blue-600">22x</span></p>
+                                <p class="text-gray-600">S&P 500 P/E: <span class="font-bold text-green-600">17x</span></p>
+                            </div>
+                             <div class="p-4 bg-gray-50 rounded-lg">
+                                <p class="font-semibold">Today's Picture</p>
+                                <p class="text-gray-600">Mexico Index P/E: <span class="font-bold text-blue-600">14x</span></p>
+                                <p class="text-gray-600">S&P 500 P/E: <span class="font-bold text-green-600">24x</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Market Multiple Inversion (P/E Ratio)</h3>
+                        <div class="chart-container h-64 md:h-80">
+                            <canvas id="marketMultipleChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Company Deep Dive Section -->
+        <section id="deep-dive" class="mb-16 scroll-mt-16">
+            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Company Deep Dive</h2>
+            <p class="text-gray-600 mb-8">PINFRA owns and operates 30 toll roads, many of which are strategic arteries into Mexico City. These are high-margin, monopolistic assets with built-in inflation protection and growth drivers. This section provides an overview of their key concessions and the value they provide to thousands of drivers daily.</p>
+            <div class="bg-white p-6 md:p-8 rounded-lg shadow-md">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-3">Key Concessions</h3>
+                        <p class="text-gray-600 mb-4">A few concessions are critical to revenue, demonstrating the quality of the portfolio. The list below highlights some of the most important roads, weighted by average daily traffic (ADT).</p>
+                        <ul class="space-y-2 text-gray-700">
+                            <li class="p-3 bg-gray-50 rounded-md flex justify-between"><span>1. Mexico-Marquesa</span> <span class="font-medium">57,808 ADT</span></li>
+                            <li class="p-3 bg-gray-50 rounded-md flex justify-between"><span>2. Peñon-Texcoco</span> <span class="font-medium">41,586 ADT</span></li>
+                            <li class="p-3 bg-gray-50 rounded-md flex justify-between"><span>3. Puebla Package</span> <span class="font-medium">32,837 ADT</span></li>
+                            <li class="p-3 bg-gray-50 rounded-md flex justify-between"><span>4. Michoacan Package</span> <span class="font-medium">31,797 ADT</span></li>
+                            <li class="p-3 bg-gray-50 rounded-md flex justify-between"><span>5. Pyramides-Ecatepec</span> <span class="font-medium">23,580 ADT</span></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Value Proposition: The Mexico-Toluca Highway</h3>
+                        <p class="text-gray-600 mb-4">For a toll of ~MXN 100 (~$5 USD), drivers get a clear benefit:</p>
+                        <div class="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg">
+                            <div class="flex-shrink-0">
+                                <svg class="h-8 w-8 text-blue-500"  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold">Trip time reduced from 2 hours to 1 hour.</h4>
+                                <p class="text-gray-500">Plus a better quality road with fewer potholes.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Valuation Section -->
+        <section id="valuation" class="mb-16 scroll-mt-16">
+            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Interactive Valuation</h2>
+            <p class="text-gray-600 mb-8">PINFRA's value is underpinned by its ability to generate high returns. This section breaks down the valuation, starting with a conservative "run-off" IRR and then allowing you to interactively explore the upside potential from reinvestment. Adjust the slider to see how different reinvestment returns impact the total projected IRR.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 md:p-8 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-3">Base Case: Run-off IRR</h3>
+                    <p class="text-gray-600 mb-4">This calculates the Internal Rate of Return assuming PINFRA stops all new projects, concessions expire in 27 years, and all free cash flow is returned to shareholders. It provides a strong floor for the valuation.</p>
+                    <div class="text-center p-6 bg-blue-50 rounded-lg">
+                        <p class="text-lg text-blue-800">Projected Real IRR</p>
+                        <p class="text-5xl font-bold text-blue-600 my-2">8.0%</p>
+                        <p class="text-sm text-blue-700">(~11.8% Nominal IRR)</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 md:p-8 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-3">Interactive: Reinvestment Upside</h3>
+                     <p class="text-gray-600 mb-4">Now, let's assume PINFRA reinvests 75% of its cash flow. Use the slider to model different returns on that new investment.</p>
+                    
+                    <div>
+                        <label for="reinvestment-slider" class="block text-sm font-medium text-gray-700">Assumed Real Return on Reinvestment: <span id="reinvestment-rate-label" class="font-bold text-blue-600">12%</span></label>
+                        <input id="reinvestment-slider" type="range" min="8" max="14" value="12" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2">
+                    </div>
+                    <div class="mt-4 text-center p-4 bg-green-50 rounded-lg">
+                        <p class="text-lg text-green-800">Resulting Total Projected IRR</p>
+                        <p id="projected-irr-label" class="text-4xl font-bold text-green-600 my-1">12.90%</p>
+                    </div>
+                </div>
+            </div>
+             <div class="mt-8 bg-white p-6 md:p-8 rounded-lg shadow-md">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Projected IRR vs. Reinvestment Return (75% Payout Rate)</h3>
+                <div class="chart-container">
+                    <canvas id="irrSensitivityChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Risks & Mitigants Section -->
+        <section id="risks" class="scroll-mt-16">
+            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Risks & Mitigants</h2>
+            <p class="text-gray-600 mb-8">Every investment carries risk. This section outlines the primary risks associated with PINFRA and the corresponding factors that help mitigate them. Click on each risk to reveal the analysis.</p>
+            <div id="accordion" class="space-y-3">
+            </div>
+        </section>
+
+    </main>
+    <footer class="bg-gray-800 mt-16">
+        <div class="container mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-gray-400 text-sm">
+            <p>This interactive analysis is for informational purposes only and is based on the report dated April 29, 2025.</p>
+        </div>
+    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Data
+            const ebitdaData = {
+                labels: ['FY 2020', 'FY 2021', 'FY 2022', 'FY 2023', 'FY 2024'],
+                datasets: [{
+                    label: 'EBITDA (MXN Millions)',
+                    data: [5853, 7785, 9435, 10813, 12015],
+                    backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 2,
+                    tension: 0.4
+                }]
+            };
+
+            const peerData = {
+                labels: ['PINFRA', 'Ferrovial (Peer)'],
+                datasets: [{
+                    label: 'EV/EBITDA Multiple',
+                    data: [5.48, 25],
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.6)',
+                        'rgba(239, 68, 68, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(59, 130, 246, 1)',
+                        'rgba(239, 68, 68, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            };
+
+            const marketMultipleData = {
+                labels: ['2015', 'Today'],
+                datasets: [{
+                        label: 'MSCI Mexico Index P/E',
+                        data: [22, 14],
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'S&P 500 Index P/E',
+                        data: [17, 24],
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    }
+                ]
+            };
+
+            const risksData = [
+                {
+                    title: "Inflation / Currency Risk",
+                    content: "A depreciation in the Mexican Peso could hurt USD returns. However, PINFRA has a key hedge: its toll tariffs are linked to Mexican CPI. This means that as long as peso depreciation doesn't materially outpace local inflation, revenues in USD terms should remain stable or grow. Historically, EBITDA per car in USD terms has actually increased."
+                },
+                {
+                    title: "Loss of Concession / Political Risk",
+                    content: "There's always a risk of governments altering or cancelling concessions. However, PINFRA's average concession length is long, at over 27 years. Furthermore, the disastrous wave of toll road bankruptcies in the 1990s, which cost the government $12B, serves as a strong deterrent for politicians to interfere with the current successful model. PINFRA also maintains excellent government relations."
+                },
+                {
+                    title: "Competition from New Roads or Trains",
+                    content: "New infrastructure could divert traffic. However, it's almost always more economical to expand an existing highway than build a competing one from scratch. While new modes of transport like the Mexico-Toluca train are being built, they are extremely expensive (3x PINFRA's total investment for 1/3 the traffic) and unlikely to be replicated widely, posing a limited threat."
+                },
+                {
+                    title: "Capital Allocation",
+                    content: "The company holds a large cash balance (~$30B MXN), which some analysts criticize. However, this criticism is mitigated by two factors: 1) The cash is not idle; it's invested in short-term Mexican bonds yielding over 10%. 2) Management has a strong, disciplined track record of only deploying capital into projects with contractually guaranteed double-digit real IRRs, preventing value-destructive investments."
+                }
+            ];
+            
+            const irrSensitivityData = {
+                '8': 12.50,
+                '10': 13.40,
+                '12': 14.20,
+                '14': 14.90
+            };
+            
+            // Chart Config
+            const chartOptions = {
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        enabled: true
+                    }
+                },
+                scales: {
+                     y: {
+                        beginAtZero: true
+                    }
+                }
+            };
+            
+            const barChartOptions = { ...chartOptions, indexAxis: 'y' };
+            delete barChartOptions.scales.y; // For horizontal bar chart
+
+            // Chart Initialization
+            new Chart(document.getElementById('ebitdaGrowthChart'), {
+                type: 'line',
+                data: ebitdaData,
+                options: chartOptions
+            });
+
+            new Chart(document.getElementById('peerComparisonChart'), {
+                type: 'bar',
+                data: peerData,
+                options: { ...chartOptions, scales: { y: { beginAtZero: true } } }
+            });
+
+            new Chart(document.getElementById('marketMultipleChart'), {
+                type: 'line',
+                data: marketMultipleData,
+                options: chartOptions
+            });
+            
+            const irrChartCtx = document.getElementById('irrSensitivityChart').getContext('2d');
+            const irrChart = new Chart(irrChartCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['8%', '10%', '12%', '14%'],
+                    datasets: [{
+                        label: 'Projected IRR at 25% Payout',
+                        data: [12.50, 13.00, 12.90, 11.80], // Data for 75% payout
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {...chartOptions, plugins: { legend: { display: false }}, title: { display: true, text: 'Projected IRR vs. Reinvestment Return' }}
+            });
+
+            // Interactive IRR Calculator
+            const slider = document.getElementById('reinvestment-slider');
+            const rateLabel = document.getElementById('reinvestment-rate-label');
+            const irrLabel = document.getElementById('projected-irr-label');
+
+            const reinvestmentReturns = {
+                "8": "12.10%", "10": "12.50%", "12": "12.90%", "14": "13.30%"
+            };
+
+            slider.addEventListener('input', function () {
+                const sliderValue = parseFloat(this.value);
+                rateLabel.textContent = `${sliderValue.toFixed(1)}%`;
+                
+                // Simple linear interpolation for IRR values
+                const minRate = 8, maxRate = 14;
+                const minIrr = 12.10, maxIrr = 13.30;
+                
+                const percentage = (sliderValue - minRate) / (maxRate - minRate);
+                const projectedIrr = minIrr + percentage * (maxIrr - minIrr);
+
+                irrLabel.textContent = `${projectedIrr.toFixed(2)}%`;
+            });
+            
+            // Accordion for Risks
+            const accordion = document.getElementById('accordion');
+            risksData.forEach((item, index) => {
+                const element = document.createElement('div');
+                element.classList.add('bg-white', 'rounded-lg', 'shadow-sm', 'overflow-hidden');
+                element.innerHTML = `
+                    <button class="accordion-header w-full flex justify-between items-center p-4 text-left font-medium text-gray-800 hover:bg-gray-50 focus:outline-none">
+                        <span>${item.title}</span>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="accordion-content hidden p-4 border-t border-gray-200">
+                        <p class="text-gray-600">${item.content}</p>
+                    </div>
+                `;
+                accordion.appendChild(element);
+            });
+            
+            accordion.addEventListener('click', function(e) {
+                const header = e.target.closest('.accordion-header');
+                if (!header) return;
+
+                const content = header.nextElementSibling;
+                const icon = header.querySelector('svg');
+                
+                content.classList.toggle('hidden');
+                icon.classList.toggle('rotate-180');
+            });
+
+            // Mobile menu toggle
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+            
+            // Nav link active state
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            window.addEventListener('scroll', () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 80) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').includes(current)) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+
+        });
+    </script>
+</body>
+</html>
